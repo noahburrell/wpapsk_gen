@@ -1,5 +1,8 @@
 import mysql.connector
 
+# Save directory
+saveDir = "/tmp/"
+
 # Initialize connection to database
 database = mysql.connector.connect(
     host="localhost",

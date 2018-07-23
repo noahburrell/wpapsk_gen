@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import config
 
 # Setup parser. Parse for gateway IP and UID.
@@ -11,11 +12,14 @@ args = parser.parse_args()
 connection = config.database.cursor(dictionary=True)
 connection.execute("SELECT macadd, token FROM "+config.devicetable+" INNER JOIN "+config.subnettable+" ON "+config.devicetable+".sid = "+config.subnettable+".id INNER JOIN "+config.routertable+" ON "+config.subnettable+".rid = "\
                    + config.routertable+".id WHERE "+config.routertable+".uid = "+args.UID+";")
-print connection.fetchall()
+results = connection.fetchall()
 
 # Generate hostapd.wpa_psk file
-
-# Temporarily save hostapd.wpa_psk file
+hash = hashlib.md5(args.UID+args.IP_ADDR).hexdigest()
+f = open(config.saveDir+hash+"_hostapd.wpa_psk", "w+")
+for result in results:
+    f.write(result['macadd']+" "+result['token']+"\n")
+f.close()
 
 # SCP hostapd.wpa_psk file to gateway
 
