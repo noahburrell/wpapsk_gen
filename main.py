@@ -8,10 +8,9 @@ import config
 # Setup parser. Parse for gateway IP and UID.
 parser = argparse.ArgumentParser("Generate a hostapd.wpa_psk file for the home gateway. Specify the IP address of the gateway to push to config to and a user ID.")
 parser.add_argument('UID', type=str, help='User ID from which to pull associated devices and tokens.')
-parser.add_argument('IP_ADDR', type=str, help='IP Address of gateway to push to config to.')
-parser.add_argument('PORT', type=str, help='Port number SSH is listening on.')
-parser.add_argument('GW_LOGIN', type=str, help='User to log into the gateway as.')
-parser.add_argument('GW_PASS', type=str, help='Password of user to log into the gateway.')
+parser.add_argument('-p', type=str, help='Password of user to log into the gateway. (OPTIONAL) Only required on first login, will use authorized keys after')
+parser.add_argument('-v', dest='debugging', action='store_true', help='Verbose output')
+parser.set_defaults(debugging=False)
 args = parser.parse_args()
 
 # Connect to SQL database, pull all devices associated with user ID
@@ -21,20 +20,43 @@ connection.execute("SELECT macadd, token FROM "+config.devicetable+" INNER JOIN 
 results = connection.fetchall()
 
 # Generate hostapd.wpa_psk file
-hash = hashlib.md5(args.UID+args.IP_ADDR).hexdigest()
+print "Generating hostapd.wpa_psk file for user ID "+args.UID+"..."
+hash = hashlib.md5(args.UID).hexdigest()
 f = open(config.saveDir+hash+"_hostapd.wpa_psk", "w+")
 for result in results:
     f.write(result['macadd']+" "+result['token']+"\n")
 f.close()
 
-# SCP hostapd.wpa_psk file to gateway
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(args.IP_ADDR, port=args.PORT, username=args.GW_LOGIN, password=args.GW_PASS)
-scp = SCPClient(ssh.get_transport())
-scp.put(config.saveDir+hash+"_hostapd.wpa_psk", "/etc/hostapd.wpa_psk")
-scp.close()
-ssh.close()
+# Get gateway connection details
+connection.execute("SELECT * FROM "+config.gatewaytable+" WHERE id = "+args.UID+";")
+results = connection.fetchall()
+for result in results:
+    # SCP hostapd.wpa_psk file to gateway and SIGHUP
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    if result['provisioned'] is 0:
+        print "Gateway ID "+str(result['id'])+" not provisioned. Provisioning..."
+        # If a password is specified device needs to be provisioned. Login and copy the public key the the gateway, then secure dropbear
+        ssh.connect(result['ip'], port=result['port'], username=result['username'], password=result['password'])
+        scp = SCPClient(ssh.get_transport())
+        scp.put(config.pubkey, "/etc/dropbear/authorized_keys")
+        scp.put("dropbear.txt", '/etc/config/dropbear')
+        (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
+        scp.close()
+        # Update database, set password to null (since key was added to gateway) and set provisioned true
+        connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, password = NULL WHERE id = "+str(result['id'])+";")
+        config.database.commit()
+    else:
+        # If no password is set, connect using the private key
+        ssh.connect(result['ip'], port=result['port'], username=result['username'], key_filename=config.privkey)
+    print "Copying hostapd.wpa_psk to gateway ID "+str(result['id'])
+    scp = SCPClient(ssh.get_transport())
+    scp.put(config.saveDir+hash+"_hostapd.wpa_psk", "/etc/hostapd.wpa_psk")
+    (stdin, stdout, stderr) = ssh.exec_command('cat '+config.pidfile)
+    pid = stdout.read()
+    (stdin, stdout, stderr) = ssh.exec_command('kill -1 '+pid)
+    scp.close()
+    ssh.close()
 
 # Delete temp hostapd.wpa_psk file
 os.remove(config.saveDir+hash+"_hostapd.wpa_psk")
