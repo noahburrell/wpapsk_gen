@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import argparse
 import hashlib
 import os
@@ -24,7 +25,7 @@ print "Generating hostapd.wpa_psk file for user ID "+args.UID+"..."
 hash = hashlib.md5(args.UID).hexdigest()
 f = open(config.saveDir+hash+"_hostapd.wpa_psk", "w+")
 for result in results:
-    f.write(result['macadd']+" "+result['token']+"\n")
+    f.write(str(result['macadd']).lower()+" "+result['token']+"\n")
 f.close()
 
 # Get gateway connection details
@@ -32,6 +33,7 @@ connection.execute("SELECT * FROM "+config.gatewaytable+" WHERE id = "+args.UID+
 results = connection.fetchall()
 for result in results:
     # SCP hostapd.wpa_psk file to gateway and SIGHUP
+    print result
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     if result['provisioned'] is 0:
