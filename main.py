@@ -85,7 +85,7 @@ for result in results:
         (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
         scp.close()
         # Update database, set password to null (since key was added to gateway) and set provisioned true
-        connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, password = NULL WHERE id = "+str(result['id'])+";")
+        connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, port = 2222, password = NULL WHERE id = "+str(result['id'])+";")
         config.database.commit()
     else:
         # If no password is set, connect using the private key
