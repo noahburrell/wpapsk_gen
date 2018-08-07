@@ -10,7 +10,7 @@ import wireless_config_gen
 # Setup parser. Parse for gateway IP and UID.
 parser = argparse.ArgumentParser("Generate a hostapd.wpa_psk file for the home gateway. Specify the user ID who's gateways are to be modified.")
 parser.add_argument('UID', type=str, help='User ID from which to pull associated devices and tokens.')
-parser.add_argument('-p', type=str, help='Password of user to log into the gateway. (OPTIONAL) Only required on first login, will use authorized keys after')
+parser.add_argument('-p', type=str, help='Password of user to log into the gateway. Used to force provisioning (OPTIONAL)')
 parser.add_argument('-c', dest='configure', action='store_true', help='Update gateway /etc/config/wireless file')
 parser.add_argument('-v', dest='debugging', action='store_true', help='Verbose output')
 parser.set_defaults(debugging=False, configure=False)
@@ -65,12 +65,23 @@ for result in results:
 
     # Check if gateway needs provisioning
     if result['provisioned'] is 0 or args.p is not None:
+        args.configure = True
         print "Gateway ID "+str(result['id'])+" not provisioned. Provisioning..."
         # If provisioned is 0 (or a password is manually specified) device needs to be provisioned. Login and copy the public key the the gateway, then secure dropbear
         ssh.connect(result['ip'], port=result['port'], username=result['username'], password=result['password'])
         scp = SCPClient(ssh.get_transport())
+        # SCP files needed for provisioning to the gateway
         scp.put(config.pubkey, "/etc/dropbear/authorized_keys")
         scp.put("deployment/dropbear", '/etc/config/dropbear')
+        scp.put("deployment/dnsmasq.conf", '/etc/dnsmasq.conf')
+        scp.put("deployment/detect_new_device.sh", '/etc/detect_new_device.sh')
+        scp.put("deployment/hostapd.sh", '/lib/netifd/hostpd.sh')
+        # Make shell files executable
+        ssh.exec_command('chmod +x /etc/detect_new_device.sh')
+        ssh.exec_command('chmod +x /lib/netifd/hostpd.sh')
+        # Commit changes and start WiFi
+        ssh.exec_command('uci commit wireless; wifi')
+        # Restart Dropbear for SSH changes to take affect
         (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
         scp.close()
         # Update database, set password to null (since key was added to gateway) and set provisioned true
