@@ -64,13 +64,13 @@ for result in results:
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     # Check if gateway needs provisioning
-    if result['provisioned'] is 0:
+    if result['provisioned'] is 0 or args.p is not None:
         print "Gateway ID "+str(result['id'])+" not provisioned. Provisioning..."
-        # If a password is specified device needs to be provisioned. Login and copy the public key the the gateway, then secure dropbear
+        # If provisioned is 0 (or a password is manually specified) device needs to be provisioned. Login and copy the public key the the gateway, then secure dropbear
         ssh.connect(result['ip'], port=result['port'], username=result['username'], password=result['password'])
         scp = SCPClient(ssh.get_transport())
         scp.put(config.pubkey, "/etc/dropbear/authorized_keys")
-        scp.put("dropbear.txt", '/etc/config/dropbear')
+        scp.put("deployment/dropbear", '/etc/config/dropbear')
         (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
         scp.close()
         # Update database, set password to null (since key was added to gateway) and set provisioned true
