@@ -33,28 +33,31 @@ for result in results:
     f.write(str(result['macadd']).lower()+" "+result['token']+"\n")
 f.close()
 
-# Generate a new /etc/config/wireless file if flag is true
-if args.configure is True:
-    # Select all subnets to configure an SSID for each
-    connection.execute("SELECT * FROM "+config.subnettable+" INNER JOIN "+config.routertable+" ON rid = "+config.routertable+".id WHERE uid = "+args.UID+";")
-    results = connection.fetchall()
-
-    # Generate wireless configs
-    device_config = wireless_config_gen.gen_device("radio0")
-    iface_config = ""
-    for result in results:
-        iface_config += wireless_config_gen.gen_iface("radio0", {"wifi-iface":str(result['subname']), "ssid":str(result['subname'])})+'\n'
-
-    # Write configs to file
-    f = open(config.saveDir + hash + "_wireless", "w+")
-    f.write(device_config+"\n"+iface_config)
-    f.close()
-    if config.debug is True:
-        print device_config+"\n"+iface_config
-
 # Get gateway connection details
 connection.execute("SELECT * FROM "+config.gatewaytable+" WHERE id = "+args.UID+";")
 results = connection.fetchall()
+
+# Build a wireless config
+# Select all subnets to configure an SSID for each
+connection.execute("SELECT * FROM " + config.subnettable + " INNER JOIN " + config.routertable + " ON rid = " + config.routertable + ".id WHERE uid = " + args.UID + ";")
+wireless_results = connection.fetchall()
+
+# Generate wireless configs
+device_config = wireless_config_gen.gen_device("radio0")
+iface_config = ""
+for wireless_result in wireless_results:
+    iface_config += wireless_config_gen.gen_iface("radio0", {"wifi-iface": str(wireless_result['subname']), "ssid": str(wireless_result['subname'])}) + '\n'
+
+# Write configs to file
+f = open(config.saveDir + hash + "_wireless", "w+")
+f.write(device_config + "\n" + iface_config)
+f.close()
+
+if config.debug is True:
+    print "File saved to: " + config.saveDir + hash + "_wireless"
+    print device_config + "\n" + iface_config
+
+
 for result in results:
     if config.debug is True:
         print result
@@ -76,14 +79,15 @@ for result in results:
         scp.put("deployment/dnsmasq.conf", '/etc/dnsmasq.conf')
         scp.put("deployment/detect_new_device.sh", '/etc/detect_new_device.sh')
         scp.put("deployment/hostapd.sh", '/lib/netifd/hostpd.sh')
+        scp.close()
         # Make shell files executable
         ssh.exec_command('chmod +x /etc/detect_new_device.sh')
         ssh.exec_command('chmod +x /lib/netifd/hostpd.sh')
         # Commit changes and start WiFi
         ssh.exec_command('uci commit wireless; wifi')
-        # Restart Dropbear for SSH changes to take affect
+        # Restart Network and Dropbear for SSH changes to take affect
         (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
-        scp.close()
+
         # Update database, set password to null (since key was added to gateway) and set provisioned true
         connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, port = 2222, password = NULL WHERE id = "+str(result['id'])+";")
         config.database.commit()
@@ -91,9 +95,9 @@ for result in results:
         # If no password is set, connect using the private key
         ssh.connect(result['ip'], port=result['port'], username=result['username'], key_filename=config.privkey)
 
-    # Upload /etc/config/wireless if -c flag was set and reload network
-    if args.configure is True:
-        print "Copying wireless config to gateway ID "+str(result['id'])
+    # Upload wireless config
+    if args.configure:
+        print "Copying wireless config to gateway ID " + str(result['id'])
         scp = SCPClient(ssh.get_transport())
         scp.put(config.saveDir + hash + "_wireless", "/etc/config/wireless")
         print "Restarting network service"
@@ -101,6 +105,7 @@ for result in results:
         scp.close()
 
     # Upload hostapd.wpa_psk file
+
     print "Copying hostapd.wpa_psk to gateway ID "+str(result['id'])
     scp = SCPClient(ssh.get_transport())
     scp.put(config.saveDir+hash+"_hostapd.wpa_psk", "/etc/hostapd.wpa_psk")
@@ -109,6 +114,8 @@ for result in results:
     print "Restarting PID: "+pid
     (stdin, stdout, stderr) = ssh.exec_command('kill -1 '+pid)
     scp.close()
+
+    # Close SSH Session
     ssh.close()
 
 # Delete temp hostapd.wpa_psk (and if exists, wireless) file
