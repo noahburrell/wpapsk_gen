@@ -27,6 +27,9 @@ connection.execute("SELECT macadd, token FROM "+config.devicetable+" INNER JOIN 
                    + config.routertable+".id WHERE "+config.routertable+".uid = "+args.UID+";")
 results = connection.fetchall()
 
+if args.debugging is True:
+    print results
+
 # Generate hostapd.wpa_psk file
 print "Generating hostapd.wpa_psk file for user ID "+args.UID+"..."
 hash = hashlib.md5(args.UID).hexdigest()
@@ -36,7 +39,7 @@ for result in results:
 f.close()
 
 # Get gateway connection details
-connection.execute("SELECT * FROM "+config.gatewaytable+" WHERE id = "+args.UID+";")
+connection.execute("SELECT * FROM "+config.gatewaytable+" WHERE uid = "+args.UID+";")
 results = connection.fetchall()
 
 # Build a wireless config
