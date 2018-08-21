@@ -3,6 +3,8 @@ import mysql.connector
 # Debugging
 debug = False
 
+rest_socket = "10.50.9.144:5000"
+
 # Save directory
 saveDir = "/tmp/"
 
