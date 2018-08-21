@@ -1,4 +1,3 @@
-#Changed section 269-281
 . /lib/functions/network.sh
 
 wpa_supplicant_add_rate() {
@@ -279,10 +278,6 @@ hostapd_set_bss_options() {
 				append bss_conf "wpa_passphrase=$key" "$N"
 			fi
 		fi
-			#[ -n "$wpa_psk_file" ] && {
-				#[ -e "$wpa_psk_file" ] || touch "$wpa_psk_file"
-				#append bss_conf "wpa_psk_file=$wpa_psk_file" "$N"
-			#}
 		
 			[ "$eapol_version" -ge "1" -a "$eapol_version" -le "2" ] && append bss_conf "eapol_version=$eapol_version" "$N"
 
