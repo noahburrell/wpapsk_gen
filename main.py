@@ -78,11 +78,11 @@ for result in results:
         scp.put("deployment/dropbear", '/etc/config/dropbear')
         scp.put("deployment/dnsmasq.conf", '/etc/dnsmasq.conf')
         scp.put("deployment/detect_new_device.sh", '/etc/detect_new_device.sh')
-        scp.put("deployment/hostapd.sh", '/lib/netifd/hostpd.sh')
+        scp.put("deployment/hostapd.sh", '/lib/netifd/hostapd.sh')
         scp.close()
         # Make shell files executable
         ssh.exec_command('chmod +x /etc/detect_new_device.sh')
-        ssh.exec_command('chmod +x /lib/netifd/hostpd.sh')
+        ssh.exec_command('chmod +x /lib/netifd/hostapd.sh')
         # Commit changes and start WiFi
         ssh.exec_command('uci commit wireless; wifi')
         # Restart Network and Dropbear for SSH changes to take affect
