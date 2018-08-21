@@ -6,6 +6,8 @@ import paramiko
 from scp import SCPClient
 import config
 import wireless_config_gen
+import common
+import time
 
 # Setup parser. Parse for gateway IP and UID.
 parser = argparse.ArgumentParser("Generate a hostapd.wpa_psk file for the home gateway. Specify the user ID who's gateways are to be modified.")
@@ -70,50 +72,67 @@ for result in results:
     if result['provisioned'] is 0 or args.p is not None:
         args.configure = True
         print "Gateway ID "+str(result['id'])+" not provisioned. Provisioning..."
+        # Update database, set password to null (since key was added to gateway) and set provisioned true
+        connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, port = 2222, password = NULL WHERE id = "+str(result['id'])+";")
+
         # If provisioned is 0 (or a password is manually specified) device needs to be provisioned. Login and copy the public key the the gateway, then secure dropbear
         ssh.connect(result['ip'], port=result['port'], username=result['username'], password=result['password'])
         scp = SCPClient(ssh.get_transport())
         # SCP files needed for provisioning to the gateway
+        print "Updating configuration files..."
         scp.put(config.pubkey, "/etc/dropbear/authorized_keys")
         scp.put("deployment/dropbear", '/etc/config/dropbear')
         scp.put("deployment/dnsmasq.conf", '/etc/dnsmasq.conf')
         scp.put("deployment/detect_new_device.sh", '/etc/detect_new_device.sh')
         scp.put("deployment/hostapd.sh", '/lib/netifd/hostapd.sh')
+        ssh.exec_command('touch /etc/hostapd.wpa_psk')
+        print "Uploading REST client..."
+        ssh.exec_command('mkdir /etc/notifier')
+        scp.put("deployment/rest_client/main.py", '/etc/notifier/main.py')
+        scp.put("deployment/rest_client/config.py", '/etc/notifier/config.py')
+        scp.put("deployment/rest_client/common.py", '/etc/notifier/common.py')
+        scp.put("deployment/rest_client/request.py", '/etc/notifier/request.py')
         scp.close()
-        # Make shell files executable
+        print "Setting Permissions..."
         ssh.exec_command('chmod +x /etc/detect_new_device.sh')
         ssh.exec_command('chmod +x /lib/netifd/hostapd.sh')
-        # Commit changes and start WiFi
-        ssh.exec_command('uci commit wireless; wifi')
-        # Restart Network and Dropbear for SSH changes to take affect
+        ssh.exec_command('chmod +x -R /etc/notifier/')
+        print "Updating packages (This may take a while)..."
+        (stdin, stdout, stderr) = ssh.exec_command('opkg update')
+        common.check_status(stdout.channel.recv_exit_status())
+        print "Installing Python (This may take a while)..."
+        (stdin, stdout, stderr) = ssh.exec_command('opkg install python')
+        common.check_status(stdout.channel.recv_exit_status())
+        print "Restarting WiFi..."
+        (stdin, stdout, stderr) = ssh.exec_command('uci commit wireless; wifi')
+        common.check_status(stdout.channel.recv_exit_status())
+        print "Restarting dnsmasq..."
+        (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dnsmasq restart')
+        common.check_status(stdout.channel.recv_exit_status())
+        print "Restarting Dropbear..."
         (stdin, stdout, stderr) = ssh.exec_command('/etc/init.d/dropbear restart')
+        common.check_status(stdout.channel.recv_exit_status())
 
-        # Update database, set password to null (since key was added to gateway) and set provisioned true
-        connection.execute("UPDATE "+config.gatewaytable+" SET provisioned = 1, port = 2222, password = NULL WHERE id = "+str(result['id'])+";")
+        # Commit changes to DB after successful provisioning
         config.database.commit()
     else:
         # If no password is set, connect using the private key
         ssh.connect(result['ip'], port=result['port'], username=result['username'], key_filename=config.privkey)
 
-    # Upload wireless config
+    # Upload wireless config and update hostapd.wpa_psk
     if args.configure:
         print "Copying wireless config to gateway ID " + str(result['id'])
         scp = SCPClient(ssh.get_transport())
         scp.put(config.saveDir + hash + "_wireless", "/etc/config/wireless")
-        print "Restarting network service"
-        (stdin, stdout, stderr) = ssh.exec_command('uci commit wireless; wifi')
         scp.close()
 
-    # Upload hostapd.wpa_psk file
+        print "Restarting network service"
+        (stdin, stdout, stderr) = ssh.exec_command('uci commit wireless; wifi')
+        common.check_status(stdout.channel.recv_exit_status())
 
-    print "Copying hostapd.wpa_psk to gateway ID "+str(result['id'])
-    scp = SCPClient(ssh.get_transport())
-    scp.put(config.saveDir+hash+"_hostapd.wpa_psk", "/etc/hostapd.wpa_psk")
-    (stdin, stdout, stderr) = ssh.exec_command('cat '+config.pidfile)
-    pid = stdout.read()
-    print "Restarting PID: "+pid
-    (stdin, stdout, stderr) = ssh.exec_command('kill -1 '+pid)
-    scp.close()
+        time.sleep(5)
+
+    common.update_hostapd(ssh, result['id'], hash)
 
     # Close SSH Session
     ssh.close()
