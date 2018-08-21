@@ -6,7 +6,7 @@
 # $2 = mac address
 # $3 = ip address
 # $4 = device name
-if logread | tail -n10 | grep "$2 WPA: pairwise key handshake completed"; then
+if logread | tail -n50 | grep "$2 WPA: pairwise key handshake completed"; then
         if grep -q $2 /etc/hostapd.wpa_psk; then
                 exit
         fi
