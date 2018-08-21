@@ -6,6 +6,7 @@ import paramiko
 from scp import SCPClient
 import config
 import wireless_config_gen
+import rest_config_gen
 import common
 import time
 
@@ -62,10 +63,15 @@ if config.debug is True:
     print "File saved to: " + config.saveDir + hash + "_wireless"
     print device_config + "\n" + iface_config
 
-
 for result in results:
     if config.debug is True:
         print result
+
+    # Generate REST Client Configs
+    rest_config = rest_config_gen.generate(args.UID, config.rest_socket, results[0]['x-auth-base'])
+    f = open(config.saveDir + hash + "_rest_config.py", "w+")
+    f.write(rest_config)
+    f.close()
 
     # Initiate SSH connection
     ssh = paramiko.SSHClient()
@@ -89,12 +95,14 @@ for result in results:
         scp.put("deployment/detect_new_device.sh", '/etc/detect_new_device.sh')
         scp.put("deployment/hostapd.sh", '/lib/netifd/hostapd.sh')
         ssh.exec_command('touch /etc/hostapd.wpa_psk')
+        print "Generating REST client config..."
+
         print "Uploading REST client..."
         ssh.exec_command('mkdir /etc/notifier')
         scp.put("deployment/rest_client/main.py", '/etc/notifier/main.py')
-        scp.put("deployment/rest_client/config.py", '/etc/notifier/config.py')
         scp.put("deployment/rest_client/common.py", '/etc/notifier/common.py')
         scp.put("deployment/rest_client/request.py", '/etc/notifier/request.py')
+        scp.put(config.saveDir + hash + "_rest_config.py", '/etc/notifier/config.py')
         scp.close()
         print "Setting Permissions..."
         ssh.exec_command('chmod +x /etc/detect_new_device.sh')
@@ -144,5 +152,6 @@ for result in results:
 try:
     os.remove(config.saveDir + hash + "_hostapd.wpa_psk")
     os.remove(config.saveDir + hash + "_wireless")
+    os.remove(config.saveDir + hash + "_rest_config.py")
 except OSError:
     pass
