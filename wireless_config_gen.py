@@ -24,14 +24,14 @@ def gen_device(device_name, options=None):
             device["htmode"] = options["htmode"]
 
     device_config = (
-        "config wifi-device '"+device["wifi-device"]+"'\n"
-        "        option type '"+device["type"]+"'\n"
-        "        option hwmode '"+device["hwmode"]+"'\n"
-        "        option path '"+device["path"]+"'\n"
-        "        option country '"+device["country"]+"'\n"
-        "        option legacy_rates '"+device["legacy_rates"]+"'\n"
-        "        option channel '"+device["channel"]+"'\n"
-        "        option htmode '"+device["htmode"]+"'\n"
+        "config 'wifi-device' '"+device["wifi-device"]+"'\n"
+        "        option 'type' '"+device["type"]+"'\n"
+        "        option 'hwmode' '"+device["hwmode"]+"'\n"
+        "        option 'path' '"+device["path"]+"'\n"
+        "        option 'country' '"+device["country"]+"'\n"
+        "        option 'legacy_rates' '"+device["legacy_rates"]+"'\n"
+        "        option 'channel' '"+device["channel"]+"'\n"
+        "        option 'htmode' '"+device["htmode"]+"'\n"
     )
 
     return device_config
@@ -64,14 +64,14 @@ def gen_iface(device_name, options=None):
 
     # Add all options to config block
     iface_config = (
-        "config wifi-iface '"+iface["wifi-iface"]+"'\n"
-        "        option device '"+iface["device"]+"'\n"
-        "        option network '"+iface["network"]+"'\n"
-        "        option mode '"+iface["mode"]+"'\n"
-        "        option ssid '"+iface["ssid"]+"'\n"
-        "        option encryption '"+iface["encryption"]+"'\n"
-        "        option wpa_psk_file '"+iface["wpa_psk_file"]+"'\n"
-        "        option isolate '" + iface["isolate"] + "'\n"
+        "config 'wifi-iface' '"+iface["wifi-iface"]+"'\n"
+        "        option 'device' '"+iface["device"]+"'\n"
+        "        option 'network' '"+iface["network"]+"'\n"
+        "        option 'mode' '"+iface["mode"]+"'\n"
+        "        option 'ssid' '"+iface["ssid"]+"'\n"
+        "        option 'encryption' '"+iface["encryption"]+"'\n"
+        "        option 'wpa_psk_file' '"+iface["wpa_psk_file"]+"'\n"
+        "        option 'isolate' '" + iface["isolate"] + "'\n"
         )
 
     # Return the config block
