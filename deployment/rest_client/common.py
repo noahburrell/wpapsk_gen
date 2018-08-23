@@ -23,3 +23,7 @@ def update_mac(device_id, new_mac):
             "mac_add": new_mac
         }
     return request.put_data(config.server_ip, "/api/v1.0/mac/"+config.uid+"/"+device_id, json.dumps(data), create_xauth_token())
+
+
+def update_ip(old_ip):
+    return request.put_data(config.server_ip, "/api/v1.0/ip/"+config.uid+"/"+old_ip, None, create_xauth_token())
